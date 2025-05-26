@@ -10,20 +10,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.REPO_TOKEN }}" | docker login ghcr.io -u "aswinsunil" --password-stdin
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build Docker Image locally
+        run: docker build -t ghcr.io/aswinsunil/task-manager:latest .       
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v3
-        with:
-          push: true
-          tags: yourdockerhubusername/task-manager:latest
+      - name: Push Docker Image to GHCR
+        run: docker push ghcr.io/aswinsunil/task-manager:latest
 
       - name: Update GitOps repo
         uses: actions/checkout@v2
