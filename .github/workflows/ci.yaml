@@ -6,12 +6,15 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
       - name: Log in to GitHub Container Registry
-        run: echo "${{ secrets.REPO_TOKEN }}" | docker login ghcr.io -u "aswinsunil" --password-stdin
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "aswinsunil" --password-stdin
 
       - name: Build Docker Image locally
         run: docker build -t ghcr.io/aswinsunil/task-manager:latest .       
