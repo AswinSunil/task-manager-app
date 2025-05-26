@@ -9,31 +9,57 @@ jobs:
     permissions:
       contents: read
       packages: write
+      # Add contents: write permission for the current repository
+      # This is needed if the GITOPS_REPO_TOKEN is a PAT with 'repo' scope
+      # and you're pushing to a different repo, or if you're using GITHUB_TOKEN
+      # for the gitops-repo (which would only work if it's the same repo).
+      # Given your setup, the GITOPS_REPO_TOKEN likely needs 'repo' scope.
+      # For the current workflow, 'contents: read' is fine, but for pushing *to* the gitops repo,
+      # the token used for that checkout needs write access.
+      # Let's assume GITOPS_REPO_TOKEN has 'repo' scope.
+
     steps:
-      - name: Checkout code
+      - name: Checkout code (for application repo)
         uses: actions/checkout@v2
 
       - name: Log in to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "aswinsunil" --password-stdin
 
       - name: Build Docker Image locally
-        run: docker build -t ghcr.io/aswinsunil/task-manager:latest .       
+        # Use the full Git SHA as the image tag to ensure uniqueness
+        run: docker build -t ghcr.io/aswinsunil/task-manager:${{ github.sha }} .
 
       - name: Push Docker Image to GHCR
-        run: docker push ghcr.io/aswinsunil/task-manager:latest
+        # Push with the unique SHA tag
+        run: docker push ghcr.io/aswinsunil/task-manager:${{ github.sha }}
 
-      - name: Update GitOps repo
+      - name: Checkout GitOps repo (as a separate step)
         uses: actions/checkout@v2
         with:
           repository: aswinsunil/gitops-repo
-          token: ${{ secrets.GITOPS_REPO_TOKEN }}
+          token: ${{ secrets.GITOPS_REPO_TOKEN }} # This token needs 'repo' scope for push
           path: gitops
+          # Ensure this checkout is on the correct branch, e.g.,
+          # ref: main
 
       - name: Update image tag in deployment
         run: |
           cd gitops/task-manager
-          sed -i 's|image: .*|image: ghcr.io/aswinsunil/task-manager:latest|' deployment.yaml
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git commit -am "Update image tag to latest"
-          git push
+          
+          # Define the new, unique image tag using the Git SHA
+          NEW_IMAGE_TAG="ghcr.io/aswinsunil/task-manager:${{ github.sha }}"
+          
+          # Use sed to replace the image line with the new, unique tag
+          # This will always result in a change unless the exact same SHA was already there
+          sed -i "s|image: .*|image: ${NEW_IMAGE_TAG}|" deployment.yaml
+          
+          # Check if changes were actually made before attempting to commit
+          if ! git diff --quiet; then
+            git config user.name "GitHub Actions"
+            git config user.email "actions@github.com"
+            git commit -am "Update image tag to ${{ github.sha }}"
+            git push
+            echo "Image tag updated and pushed to GitOps repo."
+          else
+            echo "No change in image tag (image already at this SHA). Working tree clean."
+          fi
