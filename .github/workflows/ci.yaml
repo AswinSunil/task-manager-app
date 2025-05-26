@@ -25,7 +25,7 @@ jobs:
       - name: Update GitOps repo
         uses: actions/checkout@v2
         with:
-          repository: yourusername/gitops-repo
+          repository: aswinsunil/gitops-repo
           token: ${{ secrets.GITOPS_REPO_TOKEN }}
           path: gitops
 
